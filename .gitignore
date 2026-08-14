@@ -1,16 +1,38 @@
-# 虚拟环境
+# Virtual environments
 .venv/
+venv/
 
-# 数据输出
-data/*.csv
-data/*.xlsx
+# Data exports
+data/**/*.csv
+data/**/*.xlsx
+data/**/*.log
+data/**/*.out
+data/**/*.err
+data/**/*.exit
+!data/.gitkeep
+
+# Runtime credentials and browser sessions
+.env
+.env.*
+!.env.example
+curl/
+
+# Local business inputs and generated reports
+manual_inputs/*
+!manual_inputs/README.md
+output/
 
 # IDE
 .idea/
+.vscode/
+.claude/settings.local.json
 
 # Python
 __pycache__/
+**/__pycache__/
 *.pyc
 
-# 临时文件
+# Temporary files and local binaries
 *.tmp
+*.jar
+*.bak
