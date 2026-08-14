@@ -20,7 +20,7 @@ import requests
 
 BASE_URL = os.getenv("DS_BASE_URL", "http://127.0.0.1:12345/dolphinscheduler").rstrip("/")
 PROJECT_NAME = os.getenv("DS_PROJECT_NAME", "吉客云_库存主数据同步")
-WORKDIR = "/dolphinscheduler/default/resources/jike-trade-export"
+WORKDIR = "/dolphinscheduler/default/resources/jike-cloud-data-pipeline"
 
 DAILY_NAME = "吉客云_每日数据总同步"
 WEEKLY_NAME = "吉客云_每周180天历史对账"

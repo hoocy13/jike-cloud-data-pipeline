@@ -7,13 +7,13 @@
 当前主要用于 DolphinScheduler 资源目录：
 
 ```text
-/dolphinscheduler/default/resources/jike-trade-export
+/dolphinscheduler/default/resources/jike-cloud-data-pipeline
 ```
 
 Windows 对应目录：
 
 ```text
-D:\code\anzhuanghaitun\ds_resources\default\resources\jike-trade-export
+D:\code\anzhuanghaitun\ds_resources\default\resources\jike-cloud-data-pipeline
 ```
 
 该目录才是 Git 根目录。上层目录包含 DolphinScheduler 日志、Worker 数据、PostgreSQL 和 ZooKeeper 数据卷，不得纳入本仓库。

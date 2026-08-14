@@ -2,7 +2,7 @@
 
 通过吉客云网页版导出任务获取数据，下载 xlsx 后写入 MySQL。当前脚本以 DolphinScheduler 部署为目标，同时保留 PyCharm 右键运行方式。
 
-> 仓库边界：`D:\code\anzhuanghaitun` 是 DolphinScheduler 本地运行目录，不是 Git 仓库。实际 Git 项目根目录是当前 `jike-trade-export` 目录。`ds_logs/`、`postgres_data/`、`zk_data/`、`ds_worker_data/` 等运行卷不属于源码，禁止提交。
+> 仓库边界：`D:\code\anzhuanghaitun` 是 DolphinScheduler 本地运行目录，不是 Git 仓库。实际 Git 项目根目录是当前 `jike-cloud-data-pipeline` 目录。`ds_logs/`、`postgres_data/`、`zk_data/`、`ds_worker_data/` 等运行卷不属于源码，禁止提交。
 
 ## 安全说明
 
@@ -335,7 +335,7 @@ python3 scripts/进口超市上海仓补全_web.py --build-only
 DolphinScheduler Shell 节点：
 
 ```bash
-cd /dolphinscheduler/default/resources/jike-trade-export
+cd /dolphinscheduler/default/resources/jike-cloud-data-pipeline
 python3 scripts/进口超市上海仓补全_web.py --lookback-days 45 --window-days 7 --timeout 1800 --interval 2
 ```
 
@@ -383,7 +383,7 @@ manual_inputs/天猫国际自营店数据补BI.xlsx
 DolphinScheduler Shell 节点：
 
 ```bash
-cd /dolphinscheduler/default/resources/jike-trade-export
+cd /dolphinscheduler/default/resources/jike-cloud-data-pipeline
 python3 scripts/天猫国际自营金额补全.py --apply
 ```
 

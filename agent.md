@@ -4,18 +4,18 @@
 
 吉客云网页版数据同步脚本。通过 DevTools 复制的 cURL 复用页面筛选条件，脚本重新签名后调用吉客云网页接口或导出任务，并写入 MySQL `ods` 库。
 
-Git 仓库根目录是本 `jike-trade-export` 目录；上层 `anzhuanghaitun` 是 DolphinScheduler 运行目录，包含日志和数据库卷，不应整体初始化或推送为 Git 仓库。
+Git 仓库根目录是本 `jike-cloud-data-pipeline` 目录；上层 `anzhuanghaitun` 是 DolphinScheduler 运行目录，包含日志和数据库卷，不应整体初始化或推送为 Git 仓库。
 
 本地 Windows 路径：
 
 ```text
-D:\code\anzhuanghaitun\ds_resources\default\resources\jike-trade-export
+D:\code\anzhuanghaitun\ds_resources\default\resources\jike-cloud-data-pipeline
 ```
 
 DolphinScheduler Worker 容器路径：
 
 ```text
-/dolphinscheduler/default/resources/jike-trade-export
+/dolphinscheduler/default/resources/jike-cloud-data-pipeline
 ```
 
 ## DolphinScheduler 部署现状
@@ -46,14 +46,14 @@ DolphinScheduler Worker 容器路径：
 Shell 节点统一写法：
 
 ```bash
-cd /dolphinscheduler/default/resources/jike-trade-export
+cd /dolphinscheduler/default/resources/jike-cloud-data-pipeline
 python3 scripts/脚本名_web.py --curl curl/对应_curl.txt
 ```
 
 Worker 容器已验证：
 
 ```bash
-cd /dolphinscheduler/default/resources/jike-trade-export
+cd /dolphinscheduler/default/resources/jike-cloud-data-pipeline
 python3 -m py_compile scripts/*_web.py config.py
 ```
 
