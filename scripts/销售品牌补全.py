@@ -71,6 +71,8 @@ BRAND_NAME_RULES = (
     ("科颜氏", (r"科颜氏",)),
     ("卡诗", (r"卡诗",)),
     ("纪梵希", (r"纪梵希",)),
+    ("后", (r"后WHOO", r"(?<![A-Z])WHOO(?![A-Z])", r"拱辰享", r"后天气丹")),
+    ("赛露丝尔", (r"(?<![A-Z])SERUCELL(?![A-Z])", r"赛露丝尔")),
     ("无品牌", (r"^分装罐(?:\s|$)", r"^补差价专用$")),
 )
 
@@ -538,6 +540,8 @@ def backfill_sales(conn, lookback_days: int | None = None):
             WHEN `货品名称` LIKE '%%科颜氏%%' THEN '科颜氏'
             WHEN `货品名称` LIKE '%%卡诗%%' THEN '卡诗'
             WHEN `货品名称` LIKE '%%纪梵希%%' THEN '纪梵希'
+            WHEN `货品名称` LIKE '%%后WHOO%%' OR UPPER(`货品名称`) REGEXP '(^|[^A-Z])WHOO([^A-Z]|$)' OR `货品名称` LIKE '%%拱辰享%%' OR `货品名称` LIKE '%%后天气丹%%' THEN '后'
+            WHEN UPPER(`货品名称`) REGEXP '(^|[^A-Z])SERUCELL([^A-Z]|$)' OR `货品名称` LIKE '%%赛露丝尔%%' THEN '赛露丝尔'
             WHEN `货品名称` REGEXP '^分装罐([[:space:]]|$)' OR `货品名称` = '补差价专用' THEN '无品牌'
             ELSE NULL END"""
         conn, changed = execute_update_with_retry(

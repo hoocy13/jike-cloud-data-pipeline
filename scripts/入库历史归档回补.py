@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shlex
 import sys
 import time
@@ -30,7 +31,7 @@ if str(PROJECT_DIR) not in sys.path:
 from config import DB_CONFIG
 
 
-BASE_URL = "https://env3.jkyservice.com"
+BASE_URL = os.getenv("JKY_WEB_BASE_URL", "https://web.jackyun.com").rstrip("/")
 LIST_URL = f"{BASE_URL}/jkyun/erp-busiorder/goodsdoc/listGoodsDoc"
 TABLES = {
     "archive": ("入库查询_2025归档_stage", "入库查询明细_2025归档_stage"),

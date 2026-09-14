@@ -23,7 +23,7 @@ import requests
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from config import DB_CONFIG
+from config import DB_CONFIG, EXCLUDED_SALES_WAREHOUSE
 
 
 DEFAULT_LIST_CURL = ROOT / "curl" / "进口超市上海仓_货权转移采购单_curl.txt"
@@ -34,12 +34,14 @@ ODS_PO_TABLE = "进口超市上海仓_货权转移采购单"
 ODS_PO_DETAIL_TABLE = "进口超市上海仓_货权转移采购单明细"
 DWD_TABLE = "销售单查询_进口超市上海仓补全"
 TMALL_MAPPING_TABLE = "天猫国际自营_销售单金额补全映射"
+DOUYIN_MAPPING_TABLE = "抖音进口超市_销售单金额补全映射"
 SOURCE_CHANNEL = "进口超市上海仓"
 DEFAULT_LOOKBACK_DAYS = 30
 DEFAULT_PAGE_SIZE = 200
 DEFAULT_WINDOW_DAYS = 7
 EXPORT_LOCK_TIMEOUT_SECONDS = 3600
 BUILD_LOCK_NAME = "jike_trade_export:build_import_supermarket_dwd"
+DB_QUERY_TIMEOUT_SECONDS = EXPORT_LOCK_TIMEOUT_SECONDS + 3600
 DB_CONNECT_RETRIES = 5
 DB_TRANSACTION_RETRIES = 5
 DB_RETRY_DELAY_SECONDS = 10
@@ -54,8 +56,12 @@ def connect_mysql(schema: str, retries: int = DB_CONNECT_RETRIES) -> Any:
     """Connect with bounded retries and longer socket timeouts for remote MySQL."""
     config = db_config(schema)
     config.setdefault("connect_timeout", 20)
-    config.setdefault("read_timeout", 300)
-    config.setdefault("write_timeout", 300)
+    # GET_LOCK may wait for up to an hour, and MySQL can continue a large
+    # CREATE TABLE ... AS SELECT after a shorter client socket timeout.
+    # Keep the socket alive across both the lock wait and the DWD build so a
+    # retry cannot leave an orphan server query holding the named lock.
+    config.setdefault("read_timeout", DB_QUERY_TIMEOUT_SECONDS)
+    config.setdefault("write_timeout", DB_QUERY_TIMEOUT_SECONDS)
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
@@ -775,7 +781,11 @@ def completed_dwd_stage(cursor: Any, dwd_stage: str) -> bool:
         return False
     cursor.execute(f"SELECT COUNT(*) FROM `dwd`.`{dwd_stage}`")
     stage_count = int(cursor.fetchone()[0])
-    cursor.execute("SELECT COUNT(*) FROM `ods`.`销售单查询`")
+    cursor.execute(
+        "SELECT COUNT(*) FROM `ods`.`销售单查询` s "
+        "WHERE s.`发货仓库` IS NULL OR s.`发货仓库` <> %s",
+        (EXCLUDED_SALES_WAREHOUSE,),
+    )
     source_count = int(cursor.fetchone()[0])
     cursor.execute(
         "SELECT DISTINCT INDEX_NAME FROM information_schema.statistics "
@@ -788,7 +798,11 @@ def completed_dwd_stage(cursor: Any, dwd_stage: str) -> bool:
 
 
 def collect_dwd_metrics(cursor: Any, mapping: str) -> dict[str, int]:
-    cursor.execute("SELECT COUNT(*) FROM `ods`.`销售单查询`")
+    cursor.execute(
+        "SELECT COUNT(*) FROM `ods`.`销售单查询` s "
+        "WHERE s.`发货仓库` IS NULL OR s.`发货仓库` <> %s",
+        (EXCLUDED_SALES_WAREHOUSE,),
+    )
     total = int(cursor.fetchone()[0])
     cursor.execute(
         f"SELECT COUNT(*), SUM(`订单类型` <> '零售业务') FROM `dwd`.`{DWD_TABLE}` WHERE `销售渠道`=%s",
@@ -936,27 +950,31 @@ def _build_dwd_once() -> dict[str, int]:
             )
             sales_columns = [str(row[0]) for row in cursor.fetchall()]
             has_tmall_mapping = table_exists(cursor, "dwd", TMALL_MAPPING_TABLE)
-            fill_condition = (
-                f"s.`销售渠道` = '{SOURCE_CHANNEL}' AND s.`订单类型` = '零售业务' "
-                "AND m.`平台支付GMV` IS NOT NULL AND m.`平台订单数` = 1 AND m.`销售单数` = 1"
-            )
+            has_douyin_mapping = table_exists(cursor, "dwd", DOUYIN_MAPPING_TABLE)
             tmall_fill_condition = (
                 "s.`销售渠道` = '天猫国际自营' "
                 "AND tm.`匹配状态` = '完整匹配' AND tm.`修正金额` IS NOT NULL"
             )
+            douyin_fill_condition = (
+                "s.`销售渠道` = '抖音进口超市' "
+                "AND dm.`匹配状态` = '完整匹配' "
+                "AND dm.`应收合计` IS NOT NULL AND dm.`实付金额` IS NOT NULL"
+            )
             selected_sales_columns = []
             for column in sales_columns:
                 if column in ("应收合计", "实付金额"):
+                    douyin_case = (
+                        f"WHEN {douyin_fill_condition} THEN dm.`{column}` "
+                        if has_douyin_mapping else ""
+                    )
                     if has_tmall_mapping:
                         selected_sales_columns.append(
-                            f"CASE WHEN {tmall_fill_condition} THEN tm.`修正金额` "
-                            f"WHEN {fill_condition} THEN m.`平台支付GMV` "
+                            f"CASE {douyin_case}WHEN {tmall_fill_condition} THEN tm.`修正金额` "
                             f"ELSE s.`{column}` END AS `{column}`"
                         )
                     else:
                         selected_sales_columns.append(
-                            f"CASE WHEN {fill_condition} THEN m.`平台支付GMV` "
-                            f"ELSE s.`{column}` END AS `{column}`"
+                            f"CASE {douyin_case}ELSE s.`{column}` END AS `{column}`"
                         )
                 else:
                     selected_sales_columns.append(f"s.`{column}`")
@@ -972,6 +990,8 @@ def _build_dwd_once() -> dict[str, int]:
                  AND s.`订单类型` = '零售业务'
                  AND NULLIF(TRIM(s.`物流单号`),'') = m.`运单号`
                 {"LEFT JOIN `dwd`.`" + TMALL_MAPPING_TABLE + "` tm ON s.`订单编号` = tm.`订单编号`" if has_tmall_mapping else ""}
+                {"LEFT JOIN `dwd`.`" + DOUYIN_MAPPING_TABLE + "` dm ON s.`订单编号` = dm.`订单编号`" if has_douyin_mapping else ""}
+                WHERE s.`发货仓库` IS NULL OR s.`发货仓库` <> '{EXCLUDED_SALES_WAREHOUSE}'
                 """
             )
             cursor.execute(

@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """DolphinScheduler 日常同步前置检查。
 
-只检查本地运行条件和 cURL 关键认证材料，不发起导出，也不修改数据库。
+检查本地运行条件、cURL 关键认证材料，并调用渠道列表第一页验证登录态；
+不发起导出，也不修改数据库。
 """
 
 from __future__ import annotations
@@ -11,6 +12,8 @@ import argparse
 import re
 import sys
 from pathlib import Path
+
+import requests
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -24,6 +27,7 @@ REQUIRED_CURLS = (
     "总库存查询_curl.txt",
     "分仓库查询_curl.txt",
     "批次货品库存查询_curl.txt",
+    "预留单查询_curl.txt",
     "进口超市上海仓_正向全链路数据_curl.txt",
     "进口超市上海仓_货权转移采购单_curl.txt",
     "进口超市上海仓_货权转移采购单导出_curl.txt",
@@ -68,6 +72,7 @@ def inspect_curl(path: Path) -> list[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(description="检查吉客云日常同步所需 cURL")
     parser.add_argument("--curl-dir", type=Path, default=CURL_DIR)
+    parser.add_argument("--skip-live", action="store_true", help="仅排障时跳过渠道列表登录态实测")
     args = parser.parse_args()
 
     failed = False
@@ -81,6 +86,20 @@ def main() -> None:
             print(f"[OK] {name}", flush=True)
     if failed:
         raise SystemExit(2)
+    if not args.skip_live:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from 渠道列表_web import find_list_and_total, load_curl_info, request_json
+
+        channel_curl = load_curl_info(str(args.curl_dir / "渠道列表_curl.txt"))
+        params = dict(channel_curl["params"])
+        params.update({"pageIndex": "0", "pageSize": "1"})
+        try:
+            with requests.Session() as session:
+                rows, total = find_list_and_total(request_json(session, channel_curl, params))
+            print(f"[OK] 吉客云实时登录态: 首页面={len(rows)}，总数={total}", flush=True)
+        except Exception as exc:
+            print(f"[FAIL] 吉客云实时登录态: {exc}", flush=True)
+            raise SystemExit(3) from exc
     print("[DONE] 吉客云同步前置检查通过", flush=True)
 
 

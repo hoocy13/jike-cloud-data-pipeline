@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DATA_DIR, DB_CONFIG
 
 
-BASE_URL = "https://env3.jkyservice.com"
+BASE_URL = os.getenv("JKY_WEB_BASE_URL", "https://web.jackyun.com").rstrip("/")
 HISTORY_URL = f"{BASE_URL}/jkyun/birc/stock/history"
 WEB_APP_KEY = "jackyun_web_browser_2024"
 WEB_SIGN_SECRET = os.getenv("JKY_WEB_SIGN_SECRET", "")
@@ -776,6 +776,11 @@ def parse_args() -> argparse.Namespace:
         help="allow replacing a snapshot that shrank below the safety threshold",
     )
     parser.add_argument("--continue-on-error", action="store_true")
+    parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="只请求一页验证历史库存登录态和接口，不写文件或数据库",
+    )
     return parser.parse_args()
 
 
@@ -783,6 +788,25 @@ def main() -> None:
     args = parse_args()
     dates = selected_dates(args)
     curl_info = load_curl_info(args.curl)
+    if args.preflight:
+        snapshot_date = dates[-1]
+        params = {
+            "warehouseId": args.warehouse_id,
+            "endDate": snapshot_date.isoformat(),
+            "serviceType": "history.stock.search",
+            "blockUp": "1",
+            "filterZeroSku": "1",
+            "isFilterDeleted": "1",
+            "pageSize": "1",
+            "pageIndex": "0",
+            "sortField": "",
+            "sortOrder": "",
+        }
+        with requests.Session() as session:
+            payload = request_json(session, curl_info, params)
+        rows = (payload.get("result") or {}).get("data") or []
+        print(f"[OK] 历史库存登录态与接口可用: {snapshot_date}; sample_rows={len(rows)}", flush=True)
+        return
     os.makedirs(args.csv_dir, exist_ok=True)
     failures: list[tuple[date, str]] = []
 

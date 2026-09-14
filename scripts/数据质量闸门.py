@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from config import DB_CONFIG
+from config import DB_CONFIG, EXCLUDED_DISTRIBUTION_WAREHOUSES, EXCLUDED_SALES_WAREHOUSE
 
 
 @dataclass
@@ -145,9 +145,30 @@ def run_checks(conn, max_age_hours: int) -> list[Check]:
             checks.append(Check("入库主明细完整", orphans == 0, orphans, "孤儿明细行数 = 0"))
 
         if existence[("ods", "销售单查询")] and existence[("dwd", "销售单查询_进口超市上海仓补全")]:
-            ods_rows = scalar(cur, "SELECT COUNT(*) FROM `ods`.`销售单查询`")
+            ods_rows = scalar(
+                cur,
+                "SELECT COUNT(*) FROM `ods`.`销售单查询` s "
+                "WHERE s.`发货仓库` IS NULL OR s.`发货仓库` <> %s",
+                (EXCLUDED_SALES_WAREHOUSE,),
+            )
             dwd_rows = scalar(cur, "SELECT COUNT(*) FROM `dwd`.`销售单查询_进口超市上海仓补全`")
-            checks.append(Check("销售DWD行数一致", ods_rows == dwd_rows, {"ods": ods_rows, "dwd": dwd_rows}, "ODS行数 = DWD行数"))
+            checks.append(Check("销售DWD行数一致", ods_rows == dwd_rows, {"eligible_ods": ods_rows, "dwd": dwd_rows}, "过滤得物-虚拟仓后的 ODS 行数 = DWD 行数"))
+            excluded_sales = scalar(
+                cur,
+                "SELECT COUNT(*) FROM `dwd`.`销售单查询_进口超市上海仓补全` WHERE `发货仓库`=%s",
+                (EXCLUDED_SALES_WAREHOUSE,),
+            )
+            checks.append(Check("销售分发仓剥离", excluded_sales == 0, excluded_sales, "得物-虚拟仓行数 = 0"))
+
+        for table in ("总库存查询", "分仓库查询", "批次货品库存查询"):
+            if existence[("ods", table)]:
+                placeholders = ",".join(["%s"] * len(EXCLUDED_DISTRIBUTION_WAREHOUSES))
+                excluded_stock = scalar(
+                    cur,
+                    f"SELECT COUNT(*) FROM `ods`.`{table}` WHERE TRIM(`仓库`) IN ({placeholders})",
+                    EXCLUDED_DISTRIBUTION_WAREHOUSES,
+                )
+                checks.append(Check(f"{table}分发仓剥离", excluded_stock == 0, excluded_stock, "三个分发仓行数 = 0"))
     return checks
 
 

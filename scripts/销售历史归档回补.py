@@ -28,7 +28,7 @@ import pandas as pd
 import requests
 
 
-BASE_URL = "https://env3.jkyservice.com"
+BASE_URL = os.getenv("JKY_WEB_BASE_URL", "https://web.jackyun.com").rstrip("/")
 WEB_APP_KEY = "jackyun_web_browser_2024"
 WEB_SIGN_SECRET = os.getenv("JKY_WEB_SIGN_SECRET", "")
 CHINA_TZ = timezone(timedelta(hours=8))

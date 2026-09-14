@@ -19,6 +19,10 @@ if str(ROOT) not in sys.path:
 from config import DB_CONFIG
 
 
+QUERY_RETRY_ATTEMPTS = 30
+QUERY_RETRY_DELAY_SECONDS = 10
+
+
 def connect_ads() -> Any:
     config = dict(DB_CONFIG)
     config["database"] = "ads"
@@ -28,7 +32,7 @@ def connect_ads() -> Any:
 
 def query_one(sql: str, params: tuple[Any, ...]) -> tuple[Any, ...] | None:
     last_error: Exception | None = None
-    for attempt in range(1, 6):
+    for attempt in range(1, QUERY_RETRY_ATTEMPTS + 1):
         try:
             connection = connect_ads()
             try:
@@ -39,9 +43,15 @@ def query_one(sql: str, params: tuple[Any, ...]) -> tuple[Any, ...] | None:
                 connection.close()
         except pymysql.MySQLError as exc:
             last_error = exc
-            print(f"[WARN] ADS 状态查询失败，10秒后重试 ({attempt}/5): {exc}", flush=True)
-            time.sleep(10)
-    raise RuntimeError("连续 5 次无法查询 ADS 发布状态") from last_error
+            print(
+                f"[WARN] ADS 状态查询失败，{QUERY_RETRY_DELAY_SECONDS}秒后重试 "
+                f"({attempt}/{QUERY_RETRY_ATTEMPTS}): {exc}",
+                flush=True,
+            )
+            time.sleep(QUERY_RETRY_DELAY_SECONDS)
+    raise RuntimeError(
+        f"连续 {QUERY_RETRY_ATTEMPTS} 次无法查询 ADS 发布状态"
+    ) from last_error
 
 
 def wait_sales(deadline: float, interval: int, started_within_minutes: int) -> tuple[int, str]:

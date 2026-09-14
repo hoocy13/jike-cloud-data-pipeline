@@ -9,6 +9,7 @@ authorization, access_token, cookie, ati, bx-v, and user-agent.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shlex
 import subprocess
@@ -23,6 +24,8 @@ DEFAULT_TARGET_GLOB = "*_curl.txt"
 DEFAULT_SOURCE_FILE = DEFAULT_CURL_DIR / "每日更新_curl.txt"
 
 SYNC_HEADERS = ("authorization", "ati", "bx-v", "user-agent")
+WEB_BASE_URL = os.getenv("JKY_WEB_BASE_URL", "https://web.jackyun.com").rstrip("/")
+LEGACY_WEB_BASE_URLS = ("https://env3.jkyservice.com",)
 
 
 def normalize_curl_text(text: str) -> str:
@@ -170,6 +173,11 @@ def sync_one(target_path: Path, auth: dict[str, str], backup: bool) -> list[str]
     raw = target_path.read_text(encoding="utf-8-sig")
     updated = raw
     changed: list[str] = []
+
+    for legacy_base_url in LEGACY_WEB_BASE_URLS:
+        updated, count = re.subn(re.escape(legacy_base_url), WEB_BASE_URL, updated)
+        if count:
+            changed.append("web-base-url")
 
     for header_name in SYNC_HEADERS:
         value = auth.get(header_name)

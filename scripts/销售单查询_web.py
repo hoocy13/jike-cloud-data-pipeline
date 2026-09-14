@@ -32,7 +32,7 @@ import requests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DATA_DIR, DB_CONFIG
 
-BASE_URL = "https://env3.jkyservice.com"
+BASE_URL = os.getenv("JKY_WEB_BASE_URL", "https://web.jackyun.com").rstrip("/")
 WEB_APP_KEY = "jackyun_web_browser_2024"
 WEB_SIGN_SECRET = os.getenv("JKY_WEB_SIGN_SECRET", "")
 
@@ -54,6 +54,9 @@ DEFAULT_CSV = os.path.join(DATA_DIR, "销售单查询_web.csv")
 MAX_EXPORT_ROWS = 500000
 DEFAULT_LOOKBACK_DAYS = 40
 DEFAULT_WINDOW_HOURS = 24 * 30
+# Large 30-day INSERT ... SELECT transactions can be killed by the production
+# MySQL host under load. Keep each replacement transaction small and bounded.
+MAX_STABLE_WINDOW_HOURS = 24 * 7
 MIN_WINDOW_HOURS = 1
 CONNECT_RETRIES = 5
 CONNECT_RETRY_DELAY_SECONDS = 10
@@ -627,7 +630,10 @@ def write_window_to_mysql(
         )
     except Exception as exc:
         if conn:
-            conn.rollback()
+            try:
+                conn.rollback()
+            except pymysql.MySQLError:
+                pass
         raise exc
     finally:
         if cursor:
@@ -752,7 +758,14 @@ def main() -> None:
 
     curl_info = load_curl_info(args.curl)
     base_params = export_params_from_curl(curl_info)
-    windows = split_windows(start_dt, end_dt, args.window_hours)
+    effective_window_hours = min(args.window_hours, MAX_STABLE_WINDOW_HOURS)
+    if effective_window_hours != args.window_hours:
+        print(
+            f"[INFO] capped window size from {args.window_hours}h to "
+            f"{effective_window_hours}h for stable MySQL writes",
+            flush=True,
+        )
+    windows = split_windows(start_dt, end_dt, effective_window_hours)
     print(f"[INFO] windows: {len(windows)}", flush=True)
     total_rows = 0
     with requests.Session() as session:

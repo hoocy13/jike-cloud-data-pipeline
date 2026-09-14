@@ -32,7 +32,7 @@ import requests
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DATA_DIR, DB_CONFIG
 
-BASE_URL = "https://env3.jkyservice.com"
+BASE_URL = os.getenv("JKY_WEB_BASE_URL", "https://web.jackyun.com").rstrip("/")
 WEB_APP_KEY = "jackyun_web_browser_2024"
 WEB_SIGN_SECRET = os.getenv("JKY_WEB_SIGN_SECRET", "")
 

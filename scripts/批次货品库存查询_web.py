@@ -25,9 +25,9 @@ import pymysql
 import requests
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import DATA_DIR, DB_CONFIG
+from config import DATA_DIR, DB_CONFIG, EXCLUDED_DISTRIBUTION_WAREHOUSES
 
-BASE_URL = "https://env3.jkyservice.com"
+BASE_URL = os.getenv("JKY_WEB_BASE_URL", "https://web.jackyun.com").rstrip("/")
 WEB_APP_KEY = "jackyun_web_browser_2024"
 WEB_SIGN_SECRET = os.getenv("JKY_WEB_SIGN_SECRET", "")
 
@@ -270,6 +270,9 @@ def normalize_dataframe(rows: list[dict[str, Any]], update_time: datetime) -> pd
 
     df = df[SOURCE_COLUMNS].rename(columns=FIELD_MAP).copy()
     df = df.dropna(how="all", subset=["仓库", "批次", "货品编号", "条码"])
+    before_filter = len(df)
+    df = df[~df["仓库"].astype("string").str.strip().isin(EXCLUDED_DISTRIBUTION_WAREHOUSES)].copy()
+    print(f"[INFO] excluded distribution-warehouse rows: {before_filter - len(df)}", flush=True)
 
     for col in QUANTITY_COLUMNS:
         df[col] = (
