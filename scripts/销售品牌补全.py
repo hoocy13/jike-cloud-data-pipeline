@@ -59,6 +59,7 @@ BRAND_NAME_RULES = (
     ("TOM FORD", (r"TOM FORD",)),
     ("适乐肤", (r"适乐肤", r"CERAVE")),
     ("伊丽莎白雅顿", (r"伊丽莎白雅顿", r"伊丽莎白雅粉胶")),
+    ("菲洛嘉", (r"菲洛嘉", r"(?<![A-Z])FILORGA(?![A-Z])")),
     ("伊菲丹", (r"伊菲丹",)),
     ("修丽可", (r"修丽可",)),
     ("帕尔玛之水", (r"帕尔玛之水",)),
@@ -528,6 +529,7 @@ def backfill_sales(conn, lookback_days: int | None = None):
             WHEN UPPER(`货品名称`) LIKE '%%TOM FORD%%' THEN 'TOM FORD'
             WHEN `货品名称` LIKE '%%适乐肤%%' OR UPPER(`货品名称`) LIKE '%%CERAVE%%' THEN '适乐肤'
             WHEN `货品名称` LIKE '%%伊丽莎白雅顿%%' OR `货品名称` LIKE '%%伊丽莎白雅粉胶%%' THEN '伊丽莎白雅顿'
+            WHEN `货品名称` LIKE '%%菲洛嘉%%' OR UPPER(`货品名称`) REGEXP '(^|[^A-Z])FILORGA([^A-Z]|$)' THEN '菲洛嘉'
             WHEN `货品名称` LIKE '%%伊菲丹%%' THEN '伊菲丹'
             WHEN `货品名称` LIKE '%%修丽可%%' THEN '修丽可'
             WHEN `货品名称` LIKE '%%帕尔玛之水%%' THEN '帕尔玛之水'
