@@ -264,6 +264,9 @@ py -3 scripts\sync_curl_auth.py
 
 脚本会自动把新的 `authorization`、cookie、`ati` 分发到同目录下其他 `*_curl.txt`。
 
+同步脚本会按请求域名隔离认证材料：吉客云请求只会更新吉客云 cURL，
+不会再把 `web.jackyun.com` 的 Cookie 写入 `bscm.jinritemai.com` 文件。
+
 销售单导出如果触发手机验证，必须先在吉客云页面完成手机验证，再复制验证后的 `startExcelExport` cURL。判断标准是复制出来的 cURL 里能看到：
 
 ```text
@@ -293,6 +296,105 @@ py -3 scripts\sync_curl_auth.py --source curl\最新复制的_curl.txt
 这个工具只刷新登录态，不会改筛选条件、导出字段、`commonVerify`。
 
 销售单、销售单明细账如果触发手机验证，仍然需要拿到验证后的 `commonVerify` 或 `startExcelExport` 请求；登录态同步只能减少其他 cURL 的维护成本，不能替代手机验证。
+
+## BSCM 登录态与 cURL 预检
+
+BSCM 与吉客云是两个独立登录域，不能共用 Cookie。完成 BSCM 页面抓包后，分别保存：
+
+```text
+curl/进口超市上海仓_正向全链路数据_curl.txt          # exportFulfillOrderList
+curl/进口超市上海仓_货权转移采购单_curl.txt          # /api/procurement/po/list
+curl/进口超市上海仓_货权转移采购单导出_curl.txt      # /api/gei/generalExport
+```
+
+运行纯静态预检：
+
+```bat
+py -3 scripts\BSCM认证预检.py
+```
+
+预检只核对域名、接口、Cookie 和必要动态参数，不发起网络请求，也不会创建导出任务。
+货权采购默认由 `generalExport` 创建任务；程序会从这份请求自动推导 `queryTaskProgress` 和下载接口，不需要手工复制进度请求。
+
+## 登录态捕获助手
+
+Windows 可以直接双击仓库根目录的：
+
+```text
+启动登录态捕获助手.cmd
+```
+
+也可以从 PowerShell 启动：
+
+```bat
+py -3 scripts\登录态捕获助手.py
+```
+
+启动后保持窗口运行，在 Chrome F12 网络面板中对以下请求执行“复制 → 复制为 cURL”：
+
+```text
+startExcelExport
+exportFulfillOrderList
+/api/procurement/po/list
+/api/gei/generalExport
+```
+
+助手会根据域名和接口自动写入对应 `curl/*_curl.txt`，覆盖前生成 `.bak` 备份。
+捕获吉客云 `startExcelExport` 后会自动运行同域登录态同步；如果请求缺少 `commonVerify`，助手会拒绝覆盖。
+捕获 BSCM 请求后会自动执行静态三件套预检；尚未复制齐全时只提示继续，不会发起导出。
+
+只处理当前剪贴板一次：
+
+```bat
+py -3 scripts\登录态捕获助手.py --once
+```
+
+停止持续监听时按 `Ctrl+C`。
+
+默认日志只显示本次捕获和摘要结果。排障时如需查看同步、预检的逐文件明细，可运行：
+
+```bat
+py -3 scripts\登录态捕获助手.py --verbose
+```
+
+### Chrome 无需 F12 的自动捕获（实验版）
+
+本地助手启动后同时监听 `127.0.0.1:18765`，只接受固定扩展 ID 发来的目标请求。
+在 Chrome 的 `chrome://extensions` 打开开发者模式，选择“加载已解压的扩展程序”，目录为：
+
+```text
+browser_extension
+```
+
+安装或更新扩展后，打开吉客云或 BSCM 页面会自动开始监听，图标显示 `ON`。扩展弹窗中的按钮仅用于临时暂停或恢复当前标签页，正常情况下无需点击：
+
+- 吉客云完成验证并触发 `startExcelExport`；
+- BSCM 点击正向全链路导出；
+- BSCM 货权页面点击查询或导出。
+
+扩展只自动监听吉客云/BSCM 标签页和四个白名单接口，不自动点击页面，也不处理验证码。
+捕获成功时图标显示 `OK`，失败时显示 `!`。本机助手必须保持运行。
+
+#### Windows 登录后自动启动
+
+以当前 Windows 用户注册计划任务（无需管理员权限）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_auth_capture_autostart.ps1
+```
+
+任务名为 `JikeAuthCaptureAssistant`。登录后会隐藏启动助手；如果 `127.0.0.1:18765` 已经有助手监听，则直接退出，不会重复启动。运行日志位于：
+
+```text
+logs/auth_capture_assistant.log
+logs/auth_capture_assistant.error.log
+```
+
+取消自动启动：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install_auth_capture_autostart.ps1 -Uninstall
+```
 
 ## 清理约定
 

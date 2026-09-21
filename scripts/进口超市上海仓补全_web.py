@@ -28,7 +28,6 @@ from config import DB_CONFIG, EXCLUDED_SALES_WAREHOUSE
 
 DEFAULT_LIST_CURL = ROOT / "curl" / "进口超市上海仓_货权转移采购单_curl.txt"
 DEFAULT_EXPORT_CURL = ROOT / "curl" / "进口超市上海仓_货权转移采购单导出_curl.txt"
-DEFAULT_PROGRESS_CURL = ROOT / "curl" / "进口超市上海仓_货权转移采购单进度_curl.txt"
 DEFAULT_EXPORT_DIR = ROOT / "data" / "进口超市上海仓_货权转移采购单_exports"
 ODS_PO_TABLE = "进口超市上海仓_货权转移采购单"
 ODS_PO_DETAIL_TABLE = "进口超市上海仓_货权转移采购单明细"
@@ -174,6 +173,22 @@ def inherit_auth(endpoint_info: dict[str, Any], auth_info: dict[str, Any]) -> di
         if auth_info["headers"].get(name):
             result["headers"][name] = auth_info["headers"][name]
     return result
+
+
+def derive_progress_info(export_info: dict[str, Any]) -> dict[str, Any]:
+    """从 generalExport 请求推导进度接口，不再要求人工抓取 queryTaskProgress。"""
+    parsed = urlparse(export_info["url"])
+    query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+    query.pop("bizType", None)
+    query.pop("queryParams", None)
+    progress_url = urlunparse(
+        parsed._replace(path="/api/gei/queryTaskProgress", query=urlencode(query))
+    )
+    return {
+        "url": progress_url,
+        "headers": dict(export_info["headers"]),
+        "cookie": export_info["cookie"],
+    }
 
 
 def request_headers(info: dict[str, Any]) -> dict[str, str]:
@@ -1042,7 +1057,6 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="同步进口超市货权转移采购单并构建销售单金额补全 DWD")
     parser.add_argument("--list-curl", type=Path, default=DEFAULT_LIST_CURL)
     parser.add_argument("--export-curl", type=Path, default=DEFAULT_EXPORT_CURL)
-    parser.add_argument("--progress-curl", type=Path, default=DEFAULT_PROGRESS_CURL)
     parser.add_argument("--start", help="开始时间，默认最近30天")
     parser.add_argument("--end", help="结束日期（含）或结束时间（不含）")
     parser.add_argument("--lookback-days", type=int, default=DEFAULT_LOOKBACK_DAYS)
@@ -1082,11 +1096,8 @@ def main() -> None:
                 rows = sync_po_list(load_curl(args.list_curl), start, end, args.page_size)
             else:
                 export_info = load_endpoint_curl(args.export_curl, "generalExport")
-                progress_info = inherit_auth(
-                    load_endpoint_curl(args.progress_curl, "queryTaskProgress"),
-                    export_info,
-                )
-                print("[INFO] 进度查询沿用导出 cURL 登录态", flush=True)
+                progress_info = derive_progress_info(export_info)
+                print("[INFO] 进度查询由 generalExport 自动推导", flush=True)
                 rows = sync_po_exports(
                     export_info,
                     progress_info,

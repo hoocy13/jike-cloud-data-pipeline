@@ -21,6 +21,7 @@ curl/
 manual_inputs/*
 !manual_inputs/README.md
 output/
+logs/
 
 # IDE
 .idea/

@@ -31,7 +31,6 @@ REQUIRED_CURLS = (
     "进口超市上海仓_正向全链路数据_curl.txt",
     "进口超市上海仓_货权转移采购单_curl.txt",
     "进口超市上海仓_货权转移采购单导出_curl.txt",
-    "进口超市上海仓_货权转移采购单进度_curl.txt",
 )
 
 SALES_EXPORT_CURLS = {
@@ -43,7 +42,6 @@ COOKIE_ONLY_CURLS = {
     "进口超市上海仓_正向全链路数据_curl.txt",
     "进口超市上海仓_货权转移采购单_curl.txt",
     "进口超市上海仓_货权转移采购单导出_curl.txt",
-    "进口超市上海仓_货权转移采购单进度_curl.txt",
 }
 
 

@@ -15,7 +15,7 @@ import shlex
 import subprocess
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl
+from urllib.parse import parse_qsl, urlparse
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +39,7 @@ def parse_curl_text(raw: str) -> dict[str, Any]:
         raise ValueError(f"Could not parse cURL text: {exc}") from exc
 
     headers: dict[str, str] = {}
+    url = ""
     cookie = ""
     data_raw = ""
     i = 0
@@ -59,10 +60,22 @@ def parse_curl_text(raw: str) -> dict[str, Any]:
                 data_raw = tokens[i]
         elif token.startswith("--data-raw="):
             data_raw = token.split("=", 1)[1]
+        elif token.startswith(("https://", "http://")) and not url:
+            url = token
         i += 1
 
     params = dict(parse_qsl(data_raw, keep_blank_values=True)) if data_raw else {}
-    return {"headers": headers, "cookie": cookie, "params": params}
+    return {"url": url, "headers": headers, "cookie": cookie, "params": params}
+
+
+def auth_scope(url: str) -> str:
+    """Return the login boundary a captured browser request belongs to."""
+    host = (urlparse(url).hostname or "").lower()
+    if host == "web.jackyun.com" or host.endswith(".jkyservice.com"):
+        return "jackyun"
+    if host == "bscm.jinritemai.com":
+        return "bscm"
+    return host
 
 
 def load_source_auth(source_path: Path) -> dict[str, str]:
@@ -77,12 +90,16 @@ def load_source_auth_text(raw: str) -> dict[str, str]:
     authorization = headers.get("authorization") or params.get("access_token", "")
     if not authorization:
         raise ValueError("Source cURL has no authorization header or access_token parameter.")
+    source_scope = auth_scope(info["url"])
+    if not source_scope:
+        raise ValueError("Source cURL has no recognizable request URL.")
     if not authorization.lower().startswith("bearer "):
         authorization = f"Bearer {authorization}"
 
     auth = {
         "authorization": authorization,
         "cookie": info.get("cookie", ""),
+        "_auth_scope": source_scope,
     }
     for name in SYNC_HEADERS:
         if headers.get(name):
@@ -97,15 +114,18 @@ def load_source_auth_text(raw: str) -> dict[str, str]:
 def read_clipboard() -> str:
     try:
         result = subprocess.run(
-            ["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false); Get-Clipboard -Raw",
+            ],
             check=True,
             capture_output=True,
-            text=True,
-            encoding="utf-8",
         )
     except (OSError, subprocess.CalledProcessError) as exc:
         raise RuntimeError("Could not read clipboard. Save the cURL to a file and use --source instead.") from exc
-    text = result.stdout.strip()
+    text = (result.stdout or b"").decode("utf-8-sig", errors="replace").strip()
     if not text:
         raise ValueError("Clipboard is empty. Copy a fresh cURL first.")
     return text
@@ -275,6 +295,14 @@ def main() -> None:
         if source_path and target_path == source_path:
             continue
         if target_path.name == DEFAULT_SOURCE_FILE.name:
+            continue
+        target_info = parse_curl_text(target_path.read_text(encoding="utf-8-sig"))
+        target_scope = auth_scope(target_info["url"])
+        if target_scope != auth["_auth_scope"]:
+            print(
+                f"[SKIP] {target_path.name}: auth scope "
+                f"{target_scope or 'unknown'} differs from {auth['_auth_scope']}"
+            )
             continue
         changed = sync_one(target_path, auth, args.backup)
         if changed:
