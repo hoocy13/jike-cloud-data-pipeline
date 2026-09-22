@@ -11,6 +11,6 @@ export function supportsPageUrl(rawUrl) {
   }
 }
 
-export function shouldAutoAttach(rawUrl, paused) {
-  return !paused && supportsPageUrl(rawUrl);
+export function shouldAutoAttach(rawUrl, paused, active) {
+  return active && !paused && supportsPageUrl(rawUrl);
 }

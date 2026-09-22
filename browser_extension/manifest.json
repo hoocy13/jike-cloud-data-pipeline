@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "吉客云 BSCM 登录态助手",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "自动捕获指定的吉客云和 BSCM 请求，并发送到本机采集助手。",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAygE8s03DTBtjNp3daX0YRvr647Ugt/XQD+GKIKXwbt5/X3oyY1nVGUMw0cDcplGpozPpDRfxwq+cSscq+ZAcLKSO2lpijTv6e928gx5yN3TUQnfz1BGiOsKt6dbsiWpx+CNhr2oGSYf39xruyrUgYSQzhuXOLVHrK5W5n71oCa9DGkdJ/JgDh1c9BxlCRUKF2xYHwnmzWXJ6mLVc+84MLcoaXzoglI7UA+xMa0WM3Cs3b+TD1JtJ1+dSgE+fgBkUehDqeOfoX8qrTXYgDpNXqkxx8cRVLIEcazY5z5fGgHKQgC0TpRjrVsriWRIN3ESPpLPPx84QwJFXJnGcMeJsuQIDAQAB",
   "permissions": ["debugger", "tabs", "storage"],

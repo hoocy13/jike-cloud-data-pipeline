@@ -44,26 +44,38 @@ async function isAttached(tabId) {
   return attached;
 }
 
-async function autoAttach(tab) {
-  if (!tab?.id || !shouldAutoAttach(tab.url || "", await isPaused(tab.id))) return;
-  try {
-    await attachOnce(tab.id);
-  } catch (error) {
-    await chrome.storage.local.set({ lastError: error.message, lastUpdated: new Date().toLocaleString() });
-    await setStatus(tab.id, "!", "#dc2626");
-  }
-}
-
-async function attachExistingTabs() {
-  const tabs = await chrome.tabs.query({});
-  await Promise.all(tabs.map(autoAttach));
-}
-
 async function detach(tabId) {
   if (!attachedTabs.has(tabId)) return;
   await chrome.debugger.detach({ tabId });
   attachedTabs.delete(tabId);
   await setStatus(tabId, "", "#999999");
+}
+
+async function reconcileListening() {
+  const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const shouldListen = activeTab?.id
+    && shouldAutoAttach(activeTab.url || "", await isPaused(activeTab.id), true);
+  const activeTabId = shouldListen ? activeTab.id : null;
+
+  await Promise.all(
+    [...attachedTabs]
+      .filter(tabId => tabId !== activeTabId)
+      .map(detach)
+  );
+
+  if (!activeTabId) return;
+  try {
+    await attachOnce(activeTabId);
+  } catch (error) {
+    await chrome.storage.local.set({ lastError: error.message, lastUpdated: new Date().toLocaleString() });
+    await setStatus(activeTabId, "!", "#dc2626");
+  }
+}
+
+let reconcileQueue = Promise.resolve();
+function scheduleReconcile() {
+  reconcileQueue = reconcileQueue.then(reconcileListening, reconcileListening);
+  return reconcileQueue;
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -89,17 +101,22 @@ chrome.debugger.onDetach.addListener(({ tabId }) => {
   chrome.action.setBadgeText({ tabId, text: "" });
 });
 
-chrome.tabs.onCreated.addListener(autoAttach);
+chrome.tabs.onActivated.addListener(scheduleReconcile);
+chrome.tabs.onCreated.addListener(tab => {
+  if (tab.active) scheduleReconcile();
+});
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (changeInfo.url || changeInfo.status === "complete") autoAttach({ ...tab, id: tabId });
+  if (tab.active && (changeInfo.url || changeInfo.status === "complete")) scheduleReconcile();
 });
 chrome.tabs.onRemoved.addListener(tabId => {
   attachedTabs.delete(tabId);
   setPaused(tabId, false);
+  scheduleReconcile();
 });
-chrome.runtime.onInstalled.addListener(attachExistingTabs);
-chrome.runtime.onStartup.addListener(attachExistingTabs);
-attachExistingTabs();
+chrome.windows.onFocusChanged.addListener(scheduleReconcile);
+chrome.runtime.onInstalled.addListener(scheduleReconcile);
+chrome.runtime.onStartup.addListener(scheduleReconcile);
+scheduleReconcile();
 
 async function sendCapture(tabId, requestId) {
   const item = pending.get(requestId);

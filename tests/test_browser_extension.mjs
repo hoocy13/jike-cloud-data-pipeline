@@ -7,8 +7,10 @@ assert.equal(supportsPageUrl("https://bscm.jinritemai.com/views/cargo-right-tran
 assert.equal(supportsPageUrl("https://web.jackyun.com/home/mainframe_web.html"), true);
 assert.equal(supportsPageUrl("https://example.com/"), false);
 assert.equal(supportsPageUrl("chrome://extensions/"), false);
-assert.equal(shouldAutoAttach("https://bscm.jinritemai.com/views/", false), true);
-assert.equal(shouldAutoAttach("https://bscm.jinritemai.com/views/", true), false);
+assert.equal(shouldAutoAttach("https://bscm.jinritemai.com/views/", false, true), true);
+assert.equal(shouldAutoAttach("https://bscm.jinritemai.com/views/", true, true), false);
+assert.equal(shouldAutoAttach("https://bscm.jinritemai.com/views/", false, false), false);
+assert.equal(shouldAutoAttach("https://example.com/", false, true), false);
 
 let attachCalls = 0;
 const attachOnce = createSingleFlight(async tabId => {
